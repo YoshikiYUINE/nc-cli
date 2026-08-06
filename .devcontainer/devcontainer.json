@@ -1,0 +1,27 @@
+{
+    "name": "Rust CLI Development",
+    "image": "mcr.microsoft.com/devcontainers/rust:2-1-trixie",
+    // Antigravity / Docker 実行時の安定用引数 (DNS疎通の安定化)
+    "runArgs": [
+        "--dns=8.8.8.8",
+        "--dns=8.8.4.4"
+    ],
+    // VS Code / Antigravity 向けの環境設定および拡張機能
+    "customizations": {
+        "vscode": {
+            "settings": {
+                "rust-analyzer.inlayHints.chainingHints.enable": true,
+                "rust-analyzer.checkOnSave.command": "clippy"
+            },
+            "extensions": [
+                "rust-lang.rust-analyzer", // Rust 言語サーバー
+                "tamasfe.even-better-toml", // Cargo.toml の編集支援
+                "vadimcn.vscode-lldb" // CodeLLDB (CLI のデバッグ・ステップ実行用)
+            ]
+        }
+    },
+    // コンテナ起動後に実行するコマンド (最新ツールチェーンのアップデートなど)
+    "postCreateCommand": "rustup update stable && cargo --version",
+    // コンテナ内での非 root ユーザー利用
+    "remoteUser": "vscode"
+}
