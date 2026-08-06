@@ -1,6 +1,10 @@
 {
     "name": "Rust CLI Development",
     "image": "mcr.microsoft.com/devcontainers/rust:2-1-trixie",
+    // SSH Agent ソケットの自動転送を明示（通常はデフォルトで有効）
+    "containerEnv": {
+        "SSH_AUTH_SOCK": "/tmp/vscode-ssh-auth.sock"
+    },
     // Antigravity / Docker 実行時の安定用引数 (DNS疎通の安定化)
     "runArgs": [
         "--dns=8.8.8.8",
