@@ -1,0 +1,6 @@
+# Nextcloud の occ コマンド実行に必要な設定を記載します
+host = "[IP_ADDRESS]:[PORT]"
+ssh_user = "[SSH_USERNAME]"
+identity_file = "/path/to/your/private/key"
+php_path = "/path/to/php"
+occ_path = "/path/to/nextcloud/occ"
