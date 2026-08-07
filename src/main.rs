@@ -106,7 +106,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // 5. occ user:delete コマンドの構築と実行
     let command = format!(
-        "{} {} user:delete {} --non-interactive",
+        "{} {} user:delete {} --no-interaction --verbose",
         php_path, occ_path, args.target_user
     );
 
