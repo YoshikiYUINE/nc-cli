@@ -49,14 +49,22 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// ユーザーを削除します
+    /// ユーザーを削除します (occ user:delete)
     Delete {
         /// 削除対象の Nextcloud ユーザーID (例: okamura)
         #[arg(short, long)]
         target_user: String,
     },
-    /// ユーザー一覧を取得します (JSON形式)
+
+    /// ユーザー一覧を取得します (occ user:list)
+    #[command(name = "user-list")]
+    UserList,
+
+    /// 利用可能な OCC コマンド一覧を表示します (occ list)
     List,
+
+    /// Nextcloud のステータス情報を表示します (occ status)
+    Status,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -100,11 +108,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 php_path, occ_path, target_user
             )
         }
-        Commands::List => {
+        Commands::UserList => {
             format!(
                 "{} {} user:list --info --output=json",
                 php_path, occ_path
             )
+        }
+        Commands::List => {
+            format!("{} {} list", php_path, occ_path)
+        }
+        Commands::Status => {
+            format!("{} {} status --output=json", php_path, occ_path)
         }
     };
 
@@ -156,8 +170,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Commands::Delete { target_user } => {
                 println!("成功: ユーザー '{}' を正常に削除しました。", target_user);
             }
-            Commands::List => {
+            Commands::UserList => {
                 println!("成功: ユーザー一覧を取得しました。");
+            }
+            Commands::List => {
+                println!("成功: OCCコマンド一覧を取得しました。");
+            }
+            Commands::Status => {
+                println!("成功: ステータス情報を取得しました。");
             }
         }
     } else {
