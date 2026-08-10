@@ -65,6 +65,18 @@ enum Commands {
 
     /// Nextcloud のステータス情報を表示します (occ status)
     Status,
+
+    /// メンテナンスモードを切り替えます (occ maintenance:mode)
+    #[command(name = "maintenance-mode")]
+    MaintenanceMode {
+        /// メンテナンスモードを有効化
+        #[arg(long, conflicts_with = "off")]
+        on: bool,
+
+        /// メンテナンスモードを無効化
+        #[arg(long, conflicts_with = "on")]
+        off: bool,
+    },
 }
 
 /// 各サブコマンドに応じた OCC リモート実行コマンド文字列を構築する関数
@@ -84,6 +96,15 @@ fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> Stri
         }
         Commands::Status => {
             format!("{} {} status --output=json", php_path, occ_path)
+        }
+        Commands::MaintenanceMode { on, off } => {
+            if *on {
+                format!("{} {} maintenance:mode --on", php_path, occ_path)
+            } else if *off {
+                format!("{} {} maintenance:mode --off", php_path, occ_path)
+            } else {
+                format!("{} {} maintenance:mode", php_path, occ_path)
+            }
         }
     }
 }
@@ -186,6 +207,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Commands::Status => {
                 println!("成功: ステータス情報を取得しました。");
             }
+            Commands::MaintenanceMode { on, off } => {
+                if *on {
+                    println!("成功: メンテナンスモードを有効化しました。");
+                } else if *off {
+                    println!("成功: メンテナンスモードを無効化しました。");
+                } else {
+                    println!("成功: メンテナンスモードコマンドを実行しました。");
+                }
+            }
         }
     } else {
         eprintln!("失敗: コマンドが終了コード {} で終了しました。", exit_status);
@@ -233,6 +263,17 @@ mod tests {
         let cmd = Commands::Status;
         let result = build_occ_command(&cmd, "php", "./occ");
         assert_eq!(result, "php ./occ status --output=json");
+    }
+
+    #[test]
+    fn test_build_occ_command_maintenance_mode() {
+        let cmd_on = Commands::MaintenanceMode { on: true, off: false };
+        let result_on = build_occ_command(&cmd_on, "php", "./occ");
+        assert_eq!(result_on, "php ./occ maintenance:mode --on");
+
+        let cmd_off = Commands::MaintenanceMode { on: false, off: true };
+        let result_off = build_occ_command(&cmd_off, "php", "./occ");
+        assert_eq!(result_off, "php ./occ maintenance:mode --off");
     }
 
     // --- 2. TOML 設定パースのテスト ---
@@ -296,7 +337,7 @@ mod tests {
             "app",
             "--host",
             "remote.host:2222",
-            "-s", // "-s" (--ssh-user) 
+            "-s",
             "myuser",
             "status",
         ])
@@ -305,5 +346,26 @@ mod tests {
         assert_eq!(parsed.command, Commands::Status);
         assert_eq!(parsed.host, Some("remote.host:2222".to_string()));
         assert_eq!(parsed.ssh_user, Some("myuser".to_string()));
+    }
+
+    #[test]
+    fn test_cli_parse_maintenance_mode_subcommand() {
+        let parsed_on = Args::try_parse_from(["app", "maintenance-mode", "--on"]).unwrap();
+        assert_eq!(
+            parsed_on.command,
+            Commands::MaintenanceMode {
+                on: true,
+                off: false,
+            }
+        );
+
+        let parsed_off = Args::try_parse_from(["app", "maintenance-mode", "--off"]).unwrap();
+        assert_eq!(
+            parsed_off.command,
+            Commands::MaintenanceMode {
+                on: false,
+                off: true,
+            }
+        );
     }
 }
