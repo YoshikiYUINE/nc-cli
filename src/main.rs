@@ -7,7 +7,7 @@ use std::net::TcpStream;
 use std::path::PathBuf;
 
 /// config.toml の構造体定義
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, PartialEq)]
 struct Config {
     host: Option<String>,
     ssh_user: Option<String>,
@@ -26,11 +26,11 @@ struct Args {
     #[arg(long, global = true)]
     host: Option<String>,
 
-    /// SSH ログインユーザー名 (例: ubuntu, root など)
+    /// SSH ログインユーザー名 (-s / --ssh-user)
     #[arg(short, long, global = true)]
     ssh_user: Option<String>,
 
-    /// SSH 秘密鍵ファイルのパス (指定がない場合は SSH Agent を使用)
+    /// SSH 秘密鍵ファイルのパス (-i / --identity-file)
     #[arg(short, long, global = true)]
     identity_file: Option<PathBuf>,
 
@@ -42,12 +42,12 @@ struct Args {
     #[arg(long, global = true)]
     php_path: Option<String>,
 
-    /// 設定ファイルのパス
+    /// 設定ファイルのパス (-c / --config-file)
     #[arg(short, long, default_value = "config.toml", global = true)]
     config_file: PathBuf,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, PartialEq)]
 enum Commands {
     /// ユーザーを削除します (occ user:delete)
     Delete {
@@ -67,13 +67,39 @@ enum Commands {
     Status,
 }
 
+/// 各サブコマンドに応じた OCC リモート実行コマンド文字列を構築する関数
+fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> String {
+    match command {
+        Commands::Delete { target_user } => {
+            format!(
+                "{} {} user:delete {} --no-interaction --verbose",
+                php_path, occ_path, target_user
+            )
+        }
+        Commands::UserList => {
+            format!("{} {} user:list --info --output=json", php_path, occ_path)
+        }
+        Commands::List => {
+            format!("{} {} list", php_path, occ_path)
+        }
+        Commands::Status => {
+            format!("{} {} status --output=json", php_path, occ_path)
+        }
+    }
+}
+
+/// TOML 文字列を Config 構造体にパースするヘルパー関数
+fn parse_config_toml(content: &str) -> Result<Config, toml::de::Error> {
+    toml::from_str(content)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // 1. config.toml の読み込み
     let config: Config = if args.config_file.exists() {
         let content = fs::read_to_string(&args.config_file)?;
-        toml::from_str(&content)?
+        parse_config_toml(&content)?
     } else {
         Config::default()
     };
@@ -101,26 +127,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|| "/opt/php-8.3/bin/php".to_string());
 
     // 3. サブコマンドに応じた occ コマンドの構築
-    let occ_command = match &args.command {
-        Commands::Delete { target_user } => {
-            format!(
-                "{} {} user:delete {} --no-interaction --verbose",
-                php_path, occ_path, target_user
-            )
-        }
-        Commands::UserList => {
-            format!(
-                "{} {} user:list --info --output=json",
-                php_path, occ_path
-            )
-        }
-        Commands::List => {
-            format!("{} {} list", php_path, occ_path)
-        }
-        Commands::Status => {
-            format!("{} {} status --output=json", php_path, occ_path)
-        }
-    };
+    let occ_command = build_occ_command(&args.command, &php_path, &occ_path);
 
     // 4. SSH 接続と認証
     println!("SSH接続を開始します: {}@{}", ssh_user, host);
@@ -185,4 +192,118 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+// -----------------------------------------------------------------------------
+// Unit Tests
+// -----------------------------------------------------------------------------
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- 1. OCC コマンド文字列生成ロジックのテスト ---
+    #[test]
+    fn test_build_occ_command_delete() {
+        let cmd = Commands::Delete {
+            target_user: "okamura".to_string(),
+        };
+        let result = build_occ_command(&cmd, "/usr/bin/php", "/var/www/nextcloud/occ");
+        assert_eq!(
+            result,
+            "/usr/bin/php /var/www/nextcloud/occ user:delete okamura --no-interaction --verbose"
+        );
+    }
+
+    #[test]
+    fn test_build_occ_command_user_list() {
+        let cmd = Commands::UserList;
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ user:list --info --output=json");
+    }
+
+    #[test]
+    fn test_build_occ_command_list() {
+        let cmd = Commands::List;
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ list");
+    }
+
+    #[test]
+    fn test_build_occ_command_status() {
+        let cmd = Commands::Status;
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ status --output=json");
+    }
+
+    // --- 2. TOML 設定パースのテスト ---
+    #[test]
+    fn test_parse_config_toml_valid() {
+        let toml_data = r#"
+            host = "happy.com:22"
+            ssh_user = "ubuntu"
+            identity_file = "/home/ubuntu/.ssh/id_rsa"
+            occ_path = "/var/www/nc/occ"
+            php_path = "/usr/bin/php8.3"
+        "#;
+
+        let config = parse_config_toml(toml_data).unwrap();
+        assert_eq!(config.host, Some("happy.com:22".to_string()));
+        assert_eq!(config.ssh_user, Some("ubuntu".to_string()));
+        assert_eq!(
+            config.identity_file,
+            Some(PathBuf::from("/home/ubuntu/.ssh/id_rsa"))
+        );
+        assert_eq!(config.occ_path, Some("/var/www/nc/occ".to_string()));
+        assert_eq!(config.php_path, Some("/usr/bin/php8.3".to_string()));
+    }
+
+    #[test]
+    fn test_parse_config_toml_partial() {
+        let toml_data = r#"
+            host = "happy.com:22"
+            ssh_user = "ubuntu"
+        "#;
+
+        let config = parse_config_toml(toml_data).unwrap();
+        assert_eq!(config.host, Some("happy.com:22".to_string()));
+        assert_eq!(config.ssh_user, Some("ubuntu".to_string()));
+        assert_eq!(config.identity_file, None);
+        assert_eq!(config.occ_path, None);
+        assert_eq!(config.php_path, None);
+    }
+
+    // --- 3. CLI コマンドライン引数パースのテスト (clap) ---
+    #[test]
+    fn test_cli_parse_delete_subcommand() {
+        let parsed = Args::try_parse_from(["app", "delete", "-t", "test_user"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::Delete {
+                target_user: "test_user".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_user_list_subcommand() {
+        let parsed = Args::try_parse_from(["app", "user-list"]).unwrap();
+        assert_eq!(parsed.command, Commands::UserList);
+    }
+
+    #[test]
+    fn test_cli_parse_global_flags() {
+        let parsed = Args::try_parse_from([
+            "app",
+            "--host",
+            "remote.host:2222",
+            "-s", // "-s" (--ssh-user) 
+            "myuser",
+            "status",
+        ])
+        .unwrap();
+
+        assert_eq!(parsed.command, Commands::Status);
+        assert_eq!(parsed.host, Some("remote.host:2222".to_string()));
+        assert_eq!(parsed.ssh_user, Some("myuser".to_string()));
+    }
 }
