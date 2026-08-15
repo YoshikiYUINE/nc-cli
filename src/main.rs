@@ -60,6 +60,10 @@ enum Commands {
     #[command(name = "user-list")]
     UserList,
 
+    /// グループ一覧を取得します (occ group:list)
+    #[command(name = "group-list")]
+    GroupList,
+
     /// 利用可能な OCC コマンド一覧を表示します (occ list)
     List,
 
@@ -90,6 +94,9 @@ fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> Stri
         }
         Commands::UserList => {
             format!("{} {} user:list --info --output=json", php_path, occ_path)
+        }
+        Commands::GroupList => {
+            format!("{} {} group:list --info --output=json", php_path, occ_path)
         }
         Commands::List => {
             format!("{} {} list", php_path, occ_path)
@@ -201,6 +208,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Commands::UserList => {
                 println!("成功: ユーザー一覧を取得しました。");
             }
+            Commands::GroupList => {
+                println!("成功: グループ一覧を取得しました。");
+            }
             Commands::List => {
                 println!("成功: OCCコマンド一覧を取得しました。");
             }
@@ -249,6 +259,13 @@ mod tests {
         let cmd = Commands::UserList;
         let result = build_occ_command(&cmd, "php", "./occ");
         assert_eq!(result, "php ./occ user:list --info --output=json");
+    }
+
+    #[test]
+    fn test_build_occ_command_group_list() {
+        let cmd = Commands::GroupList;
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ group:list --info --output=json");
     }
 
     #[test]
@@ -329,6 +346,12 @@ mod tests {
     fn test_cli_parse_user_list_subcommand() {
         let parsed = Args::try_parse_from(["app", "user-list"]).unwrap();
         assert_eq!(parsed.command, Commands::UserList);
+    }
+
+    #[test]
+    fn test_cli_parse_group_list_subcommand() {
+        let parsed = Args::try_parse_from(["app", "group-list"]).unwrap();
+        assert_eq!(parsed.command, Commands::GroupList);
     }
 
     #[test]
