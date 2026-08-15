@@ -1,6 +1,16 @@
 {
     "name": "Rust CLI Development",
     "image": "mcr.microsoft.com/devcontainers/rust:2-1-trixie",
+    // 1. Antigravity 2.0 接続用ポートフォワード設定（追加）
+    "forwardPorts": [
+        9090
+    ],
+    "portsAttributes": {
+        "9090": {
+            "label": "Antigravity 2.0 Server",
+            "onAutoForward": "notify"
+        }
+    },
     // SSH Agent ソケットの自動転送を明示（通常はデフォルトで有効）
     "containerEnv": {
         "SSH_AUTH_SOCK": "/tmp/vscode-ssh-auth.sock"
