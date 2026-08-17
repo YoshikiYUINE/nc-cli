@@ -49,6 +49,38 @@ struct Args {
 
 #[derive(Subcommand, Debug, PartialEq)]
 enum Commands {
+    /// ユーザーを作成します (occ user:add)
+    Add {
+        /// 作成するユーザーID (uid)
+        uid: String,
+
+        /// パスワードを自動生成します
+        #[arg(long)]
+        generate_password: bool,
+
+        /// 表示名
+        #[arg(long)]
+        display_name: Option<String>,
+
+        /// 所属グループ
+        #[arg(short, long)]
+        group: Option<String>,
+
+        /// メールアドレス
+        #[arg(long)]
+        email: Option<String>,
+    },
+
+    /// ユーザーの容量(Quota)を設定します (occ user:setting <uid> files quota <quota>)
+    #[command(name = "set-quota")]
+    SetQuota {
+        /// 対象のユーザーID (uid)
+        uid: String,
+
+        /// 容量サイズ (例: "10 GB", "unlimited", "default")
+        quota: String,
+    },
+
     /// ユーザーを削除します (occ user:delete)
     Delete {
         /// 削除対象の Nextcloud ユーザーID (例: okamura)
@@ -86,6 +118,34 @@ enum Commands {
 /// 各サブコマンドに応じた OCC リモート実行コマンド文字列を構築する関数
 fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> String {
     match command {
+        Commands::Add {
+            uid,
+            generate_password,
+            display_name,
+            group,
+            email,
+        } => {
+            let mut cmd = format!("{} {} user:add {}", php_path, occ_path, uid);
+            if *generate_password {
+                cmd.push_str(" --generate-password");
+            }
+            if let Some(dn) = display_name {
+                cmd.push_str(&format!(" --display-name=\"{}\"", dn));
+            }
+            if let Some(g) = group {
+                cmd.push_str(&format!(" --group=\"{}\"", g));
+            }
+            if let Some(em) = email {
+                cmd.push_str(&format!(" --email=\"{}\"", em));
+            }
+            cmd
+        }
+        Commands::SetQuota { uid, quota } => {
+            format!(
+                "{} {} user:setting {} files quota \"{}\"",
+                php_path, occ_path, uid, quota
+            )
+        }
         Commands::Delete { target_user } => {
             format!(
                 "{} {} user:delete {} --no-interaction --verbose",
@@ -173,7 +233,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if !sess.authenticated() {
-        return Err("SSH認証に失敗しました。秘密鍵、SSH Agent、またはユーザー名を確認してください。".into());
+        return Err(
+            "SSH認証に失敗しました。秘密鍵、SSH Agent、またはユーザー名を確認してください。".into(),
+        );
     }
     println!("SSH認証に成功しました。");
 
@@ -202,6 +264,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n----------------------------------------");
     if exit_status == 0 {
         match &args.command {
+            Commands::Add { uid, .. } => {
+                println!("成功: ユーザー '{}' を正常に作成しました。", uid);
+            }
+            Commands::SetQuota { uid, quota } => {
+                println!(
+                    "成功: ユーザー '{}' の容量制限を '{}' に設定しました。",
+                    uid, quota
+                );
+            }
             Commands::Delete { target_user } => {
                 println!("成功: ユーザー '{}' を正常に削除しました。", target_user);
             }
@@ -228,7 +299,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     } else {
-        eprintln!("失敗: コマンドが終了コード {} で終了しました。", exit_status);
+        eprintln!(
+            "失敗: コマンドが終了コード {} で終了しました。",
+            exit_status
+        );
     }
 
     Ok(())
@@ -242,6 +316,48 @@ mod tests {
     use super::*;
 
     // --- 1. OCC コマンド文字列生成ロジックのテスト ---
+    #[test]
+    fn test_build_occ_command_add_full() {
+        let cmd = Commands::Add {
+            uid: "okamura".to_string(),
+            generate_password: true,
+            display_name: Some("岡村".to_string()),
+            group: Some("admin".to_string()),
+            email: Some("okamura@example.com".to_string()),
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(
+            result,
+            "php ./occ user:add okamura --generate-password --display-name=\"岡村\" --group=\"admin\" --email=\"okamura@example.com\""
+        );
+    }
+
+    #[test]
+    fn test_build_occ_command_add_minimal() {
+        let cmd = Commands::Add {
+            uid: "okamura".to_string(),
+            generate_password: false,
+            display_name: None,
+            group: None,
+            email: None,
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ user:add okamura");
+    }
+
+    #[test]
+    fn test_build_occ_command_set_quota() {
+        let cmd = Commands::SetQuota {
+            uid: "okamura".to_string(),
+            quota: "10 GB".to_string(),
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(
+            result,
+            "php ./occ user:setting okamura files quota \"10 GB\""
+        );
+    }
+
     #[test]
     fn test_build_occ_command_delete() {
         let cmd = Commands::Delete {
@@ -284,11 +400,17 @@ mod tests {
 
     #[test]
     fn test_build_occ_command_maintenance_mode() {
-        let cmd_on = Commands::MaintenanceMode { on: true, off: false };
+        let cmd_on = Commands::MaintenanceMode {
+            on: true,
+            off: false,
+        };
         let result_on = build_occ_command(&cmd_on, "php", "./occ");
         assert_eq!(result_on, "php ./occ maintenance:mode --on");
 
-        let cmd_off = Commands::MaintenanceMode { on: false, off: true };
+        let cmd_off = Commands::MaintenanceMode {
+            on: false,
+            off: true,
+        };
         let result_off = build_occ_command(&cmd_off, "php", "./occ");
         assert_eq!(result_off, "php ./occ maintenance:mode --off");
     }
@@ -331,6 +453,46 @@ mod tests {
     }
 
     // --- 3. CLI コマンドライン引数パースのテスト (clap) ---
+    #[test]
+    fn test_cli_parse_add_subcommand() {
+        let parsed = Args::try_parse_from([
+            "app",
+            "add",
+            "okamura",
+            "--generate-password",
+            "--display-name",
+            "岡村",
+            "-g",
+            "admin",
+            "--email",
+            "okamura@example.com",
+        ])
+        .unwrap();
+
+        assert_eq!(
+            parsed.command,
+            Commands::Add {
+                uid: "okamura".to_string(),
+                generate_password: true,
+                display_name: Some("岡村".to_string()),
+                group: Some("admin".to_string()),
+                email: Some("okamura@example.com".to_string()),
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_set_quota_subcommand() {
+        let parsed = Args::try_parse_from(["app", "set-quota", "okamura", "10 GB"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::SetQuota {
+                uid: "okamura".to_string(),
+                quota: "10 GB".to_string(),
+            }
+        );
+    }
+
     #[test]
     fn test_cli_parse_delete_subcommand() {
         let parsed = Args::try_parse_from(["app", "delete", "-t", "test_user"]).unwrap();
