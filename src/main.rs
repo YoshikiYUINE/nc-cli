@@ -82,10 +82,18 @@ enum Commands {
     },
 
     /// ユーザーを削除します (occ user:delete)
-    Delete {
+    #[command(name = "user-delete")]
+    UserDelete {
         /// 削除対象の Nextcloud ユーザーID (例: okamura)
         #[arg(short, long)]
         target_user: String,
+    },
+
+    /// ファイルまたはディレクトリを削除します (occ files:delete)
+    #[command(name = "file-delete")]
+    FileDelete {
+        /// 削除対象のファイルIDまたはパス
+        path_or_id: String,
     },
 
     /// ユーザー一覧を取得します (occ user:list)
@@ -146,11 +154,14 @@ fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> Stri
                 php_path, occ_path, uid, quota
             )
         }
-        Commands::Delete { target_user } => {
+        Commands::UserDelete { target_user } => {
             format!(
                 "{} {} user:delete {} --no-interaction --verbose",
                 php_path, occ_path, target_user
             )
+        }
+        Commands::FileDelete { path_or_id } => {
+            format!("{} {} files:delete \"{}\"", php_path, occ_path, path_or_id)
         }
         Commands::UserList => {
             format!("{} {} user:list --info --output=json", php_path, occ_path)
@@ -273,8 +284,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     uid, quota
                 );
             }
-            Commands::Delete { target_user } => {
+            Commands::UserDelete { target_user } => {
                 println!("成功: ユーザー '{}' を正常に削除しました。", target_user);
+            }
+            Commands::FileDelete { path_or_id } => {
+                println!(
+                    "成功: ファイル/ディレクトリ '{}' を正常に削除しました。",
+                    path_or_id
+                );
             }
             Commands::UserList => {
                 println!("成功: ユーザー一覧を取得しました。");
@@ -359,8 +376,8 @@ mod tests {
     }
 
     #[test]
-    fn test_build_occ_command_delete() {
-        let cmd = Commands::Delete {
+    fn test_build_occ_command_user_delete() {
+        let cmd = Commands::UserDelete {
             target_user: "okamura".to_string(),
         };
         let result = build_occ_command(&cmd, "/usr/bin/php", "/var/www/nextcloud/occ");
@@ -368,6 +385,15 @@ mod tests {
             result,
             "/usr/bin/php /var/www/nextcloud/occ user:delete okamura --no-interaction --verbose"
         );
+    }
+
+    #[test]
+    fn test_build_occ_command_file_delete() {
+        let cmd = Commands::FileDelete {
+            path_or_id: "12345".to_string(),
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ files:delete \"12345\"");
     }
 
     #[test]
@@ -494,12 +520,23 @@ mod tests {
     }
 
     #[test]
-    fn test_cli_parse_delete_subcommand() {
-        let parsed = Args::try_parse_from(["app", "delete", "-t", "test_user"]).unwrap();
+    fn test_cli_parse_user_delete_subcommand() {
+        let parsed = Args::try_parse_from(["app", "user-delete", "-t", "test_user"]).unwrap();
         assert_eq!(
             parsed.command,
-            Commands::Delete {
+            Commands::UserDelete {
                 target_user: "test_user".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_delete_subcommand() {
+        let parsed = Args::try_parse_from(["app", "file-delete", "12345"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileDelete {
+                path_or_id: "12345".to_string()
             }
         );
     }
