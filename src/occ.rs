@@ -40,6 +40,15 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
         Commands::FileDelete { path_or_id } => {
             format!("{} {} files:delete \"{}\"", php_path, occ_path, path_or_id)
         }
+        Commands::FilePut {
+            local_path,
+            target_path_or_id,
+        } => {
+            format!(
+                "{} {} files:put \"{}\" \"{}\"",
+                php_path, occ_path, local_path, target_path_or_id
+            )
+        }
         Commands::UserList => {
             format!("{} {} user:list --info --output=json", php_path, occ_path)
         }
@@ -132,6 +141,19 @@ mod tests {
         };
         let result = build_occ_command(&cmd, "php", "./occ");
         assert_eq!(result, "php ./occ files:delete \"12345\"");
+    }
+
+    #[test]
+    fn test_build_occ_command_file_put() {
+        let cmd = Commands::FilePut {
+            local_path: "/tmp/sample.txt".to_string(),
+            target_path_or_id: "admin/files/sample.txt".to_string(),
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(
+            result,
+            "php ./occ files:put \"/tmp/sample.txt\" \"admin/files/sample.txt\""
+        );
     }
 
     #[test]

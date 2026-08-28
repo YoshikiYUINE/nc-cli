@@ -83,6 +83,16 @@ pub enum Commands {
         path_or_id: String,
     },
 
+    /// ファイルを配置/書き込みます (occ files:put)
+    #[command(name = "file-put", alias = "files-put")]
+    FilePut {
+        /// Nextcloud サーバー内のローカルファイルパス (または STDIN の "-")
+        local_path: String,
+
+        /// Nextcloud 上の保存先パス または ファイルID
+        target_path_or_id: String,
+    },
+
     /// ユーザー一覧を取得します (occ user:list)
     #[command(name = "user-list")]
     UserList,
@@ -130,6 +140,15 @@ impl Commands {
                 println!(
                     "成功: ファイル/ディレクトリ '{}' を正常に削除しました。",
                     path_or_id
+                );
+            }
+            Commands::FilePut {
+                local_path,
+                target_path_or_id,
+            } => {
+                println!(
+                    "成功: ファイル '{}' を Nextcloud 上の '{}' に配置しました。",
+                    local_path, target_path_or_id
                 );
             }
             Commands::UserList => {
@@ -222,6 +241,27 @@ mod tests {
             parsed.command,
             Commands::FileDelete {
                 path_or_id: "12345".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_put_subcommand() {
+        let parsed = Args::try_parse_from(["app", "file-put", "/tmp/test.txt", "admin/files/test.txt"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FilePut {
+                local_path: "/tmp/test.txt".to_string(),
+                target_path_or_id: "admin/files/test.txt".to_string(),
+            }
+        );
+
+        let parsed_alias = Args::try_parse_from(["app", "files-put", "-", "12345"]).unwrap();
+        assert_eq!(
+            parsed_alias.command,
+            Commands::FilePut {
+                local_path: "-".to_string(),
+                target_path_or_id: "12345".to_string(),
             }
         );
     }
