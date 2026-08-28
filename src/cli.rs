@@ -93,6 +93,38 @@ pub enum Commands {
         target_path_or_id: String,
     },
 
+    /// ファイルをスキャンしてキャッシュ/DBを再同期します (occ files:scan)
+    #[command(name = "file-scan", alias = "files-scan")]
+    FileScan {
+        /// スキャン対象のユーザーID (指定したユーザーのファイルのみスキャン)
+        #[arg(conflicts_with_all = &["all", "path"])]
+        user_id: Option<String>,
+
+        /// 全てのユーザーのファイルをスキャン
+        #[arg(long, conflicts_with_all = &["user_id", "path"])]
+        all: bool,
+
+        /// スキャン対象のパスを指定 (例: "admin/files/Documents")
+        #[arg(short, long, conflicts_with_all = &["user_id", "all"])]
+        path: Option<String>,
+
+        /// 未スキャン/サイズ未計算のファイルのみを対象に高速スキャン (--unscanned)
+        #[arg(long)]
+        unscanned: bool,
+
+        /// サブディレクトリを再帰的に走査せず、指定階層直下のみをスキャン (--shallow)
+        #[arg(long)]
+        shallow: bool,
+
+        /// 外部ストレージや共有フォルダーを除外し、ホームストレージ領域のみをスキャン (--home-only)
+        #[arg(long)]
+        home_only: bool,
+
+        /// トランザクションファイルロックを行わずにスキャンを実行 (--no-lock)
+        #[arg(long)]
+        no_lock: bool,
+    },
+
     /// ユーザー一覧を取得します (occ user:list)
     #[command(name = "user-list")]
     UserList,
@@ -150,6 +182,22 @@ impl Commands {
                     "成功: ファイル '{}' を Nextcloud 上の '{}' に配置しました。",
                     local_path, target_path_or_id
                 );
+            }
+            Commands::FileScan {
+                user_id,
+                all,
+                path,
+                ..
+            } => {
+                if *all {
+                    println!("成功: 全ユーザーのファイルスキャンが完了しました。");
+                } else if let Some(p) = path {
+                    println!("成功: パス '{}' のファイルスキャンが完了しました。", p);
+                } else if let Some(u) = user_id {
+                    println!("成功: ユーザー '{}' のファイルスキャンが完了しました。", u);
+                } else {
+                    println!("成功: ファイルスキャンが完了しました。");
+                }
             }
             Commands::UserList => {
                 println!("成功: ユーザー一覧を取得しました。");
@@ -262,6 +310,70 @@ mod tests {
             Commands::FilePut {
                 local_path: "-".to_string(),
                 target_path_or_id: "12345".to_string(),
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_scan_subcommand() {
+        // --all + 各種フラグ
+        let parsed_all = Args::try_parse_from([
+            "app",
+            "file-scan",
+            "--all",
+            "--unscanned",
+            "--shallow",
+            "--home-only",
+            "--no-lock",
+        ])
+        .unwrap();
+        assert_eq!(
+            parsed_all.command,
+            Commands::FileScan {
+                user_id: None,
+                all: true,
+                path: None,
+                unscanned: true,
+                shallow: true,
+                home_only: true,
+                no_lock: true,
+            }
+        );
+
+        // ユーザー指定
+        let parsed_user = Args::try_parse_from(["app", "file-scan", "admin"]).unwrap();
+        assert_eq!(
+            parsed_user.command,
+            Commands::FileScan {
+                user_id: Some("admin".to_string()),
+                all: false,
+                path: None,
+                unscanned: false,
+                shallow: false,
+                home_only: false,
+                no_lock: false,
+            }
+        );
+
+        // パス指定 + エイリアス
+        let parsed_path = Args::try_parse_from([
+            "app",
+            "files-scan",
+            "-p",
+            "admin/files/Documents",
+            "--unscanned",
+        ])
+        .unwrap();
+        assert_eq!(
+            parsed_path.command,
+            Commands::FileScan {
+                user_id: None,
+                all: false,
+                path: Some("admin/files/Documents".to_string()),
+                unscanned: true,
+                shallow: false,
+                home_only: false,
+                no_lock: false,
             }
         );
     }

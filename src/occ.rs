@@ -49,6 +49,39 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
                 php_path, occ_path, local_path, target_path_or_id
             )
         }
+        Commands::FileScan {
+            user_id,
+            all,
+            path,
+            unscanned,
+            shallow,
+            home_only,
+            no_lock,
+        } => {
+            let mut cmd = format!("{} {} files:scan --output=json", php_path, occ_path);
+            if *all {
+                cmd.push_str(" --all");
+            }
+            if let Some(p) = path {
+                cmd.push_str(&format!(" --path=\"{}\"", p));
+            }
+            if let Some(u) = user_id {
+                cmd.push_str(&format!(" {}", u));
+            }
+            if *unscanned {
+                cmd.push_str(" --unscanned");
+            }
+            if *shallow {
+                cmd.push_str(" --shallow");
+            }
+            if *home_only {
+                cmd.push_str(" --home-only");
+            }
+            if *no_lock {
+                cmd.push_str(" --no-lock");
+            }
+            cmd
+        }
         Commands::UserList => {
             format!("{} {} user:list --info --output=json", php_path, occ_path)
         }
@@ -153,6 +186,54 @@ mod tests {
         assert_eq!(
             result,
             "php ./occ files:put \"/tmp/sample.txt\" \"admin/files/sample.txt\""
+        );
+    }
+
+    #[test]
+    fn test_build_occ_command_file_scan() {
+        // --all + 各種オプション
+        let cmd_all = Commands::FileScan {
+            user_id: None,
+            all: true,
+            path: None,
+            unscanned: true,
+            shallow: true,
+            home_only: true,
+            no_lock: true,
+        };
+        let result_all = build_occ_command(&cmd_all, "php", "./occ");
+        assert_eq!(
+            result_all,
+            "php ./occ files:scan --output=json --all --unscanned --shallow --home-only --no-lock"
+        );
+
+        // ユーザー指定
+        let cmd_user = Commands::FileScan {
+            user_id: Some("admin".to_string()),
+            all: false,
+            path: None,
+            unscanned: false,
+            shallow: false,
+            home_only: false,
+            no_lock: false,
+        };
+        let result_user = build_occ_command(&cmd_user, "php", "./occ");
+        assert_eq!(result_user, "php ./occ files:scan --output=json admin");
+
+        // パス指定 + --unscanned
+        let cmd_path = Commands::FileScan {
+            user_id: None,
+            all: false,
+            path: Some("admin/files/Documents".to_string()),
+            unscanned: true,
+            shallow: false,
+            home_only: false,
+            no_lock: false,
+        };
+        let result_path = build_occ_command(&cmd_path, "php", "./occ");
+        assert_eq!(
+            result_path,
+            "php ./occ files:scan --output=json --path=\"admin/files/Documents\" --unscanned"
         );
     }
 
