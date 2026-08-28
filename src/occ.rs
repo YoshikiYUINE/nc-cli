@@ -89,7 +89,7 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
             format!("{} {} group:list --info --output=json", php_path, occ_path)
         }
         Commands::List => {
-            format!("{} {} list", php_path, occ_path)
+            format!("{} {} list --output=json", php_path, occ_path)
         }
         Commands::Status => {
             format!("{} {} status --output=json", php_path, occ_path)
@@ -255,7 +255,7 @@ mod tests {
     fn test_build_occ_command_list() {
         let cmd = Commands::List;
         let result = build_occ_command(&cmd, "php", "./occ");
-        assert_eq!(result, "php ./occ list");
+        assert_eq!(result, "php ./occ list --output=json");
     }
 
     #[test]
