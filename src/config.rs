@@ -22,6 +22,20 @@ impl Config {
             Ok(Config::default())
         }
     }
+
+    /// host ("hostname:port" または "hostname") から Host 名と Port 番号を取得
+    pub fn get_host_and_port(&self) -> (String, Option<u16>) {
+        if let Some(ref host_str) = self.host {
+            let parts: Vec<&str> = host_str.split(':').collect();
+            if parts.len() == 2 {
+                if let Ok(port) = parts[1].parse::<u16>() {
+                    return (parts[0].to_string(), Some(port));
+                }
+            }
+            return (host_str.clone(), None);
+        }
+        ("".to_string(), None)
+    }
 }
 
 /// TOML 文字列を Config 構造体にパースするヘルパー関数
@@ -55,6 +69,10 @@ mod tests {
         );
         assert_eq!(config.occ_path, Some("/var/www/nc/occ".to_string()));
         assert_eq!(config.php_path, Some("/usr/bin/php8.3".to_string()));
+
+        let (host, port) = config.get_host_and_port();
+        assert_eq!(host, "happy.com");
+        assert_eq!(port, Some(22));
     }
 
     #[test]
@@ -70,5 +88,9 @@ mod tests {
         assert_eq!(config.identity_file, None);
         assert_eq!(config.occ_path, None);
         assert_eq!(config.php_path, None);
+
+        let (host, port) = config.get_host_and_port();
+        assert_eq!(host, "happy.com");
+        assert_eq!(port, Some(22));
     }
 }

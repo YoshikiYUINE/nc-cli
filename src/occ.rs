@@ -103,6 +103,7 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
                 format!("{} {} maintenance:mode", php_path, occ_path)
             }
         }
+        Commands::Sync { .. } => String::new(),
     }
 }
 
@@ -191,7 +192,6 @@ mod tests {
 
     #[test]
     fn test_build_occ_command_file_scan() {
-        // --all + 各種オプション
         let cmd_all = Commands::FileScan {
             user_id: None,
             all: true,
@@ -207,7 +207,6 @@ mod tests {
             "php ./occ files:scan --output=json --all --unscanned --shallow --home-only --no-lock"
         );
 
-        // ユーザー指定
         let cmd_user = Commands::FileScan {
             user_id: Some("admin".to_string()),
             all: false,
@@ -220,7 +219,6 @@ mod tests {
         let result_user = build_occ_command(&cmd_user, "php", "./occ");
         assert_eq!(result_user, "php ./occ files:scan --output=json admin");
 
-        // パス指定 + --unscanned
         let cmd_path = Commands::FileScan {
             user_id: None,
             all: false,

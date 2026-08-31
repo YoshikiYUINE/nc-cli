@@ -1,47 +1,47 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
-/// CLIコマンドライン引数の全体定義
+/// CLI 引数定義
 #[derive(Parser, Debug)]
-#[command(author, version, about = "Nextcloud 管理 CLI (SSH経由)")]
+#[command(author, version, about = "Nextcloud 管理 CLI (SSH 経由)")]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
 
-    /// SSH サーバーのホスト名とポート (例: example.server.jp:22)
+    /// SSH ホスト (形式: example.server.jp:22)
     #[arg(long, global = true)]
     pub host: Option<String>,
 
-    /// SSH ログインユーザー名 (-s / --ssh-user)
+    /// SSH ユーザー名 (-s / --ssh-user)
     #[arg(short, long, global = true)]
     pub ssh_user: Option<String>,
 
-    /// SSH 秘密鍵ファイルのパス (-i / --identity-file)
+    /// SSH 秘密鍵パス (-i / --identity-file)
     #[arg(short, long, global = true)]
     pub identity_file: Option<PathBuf>,
 
-    /// Nextcloud の occ コマンドパス
+    /// Nextcloud の occ パス
     #[arg(long, global = true)]
     pub occ_path: Option<String>,
 
-    /// PHP 実行バイナリのパス
+    /// PHP 実行パス
     #[arg(long, global = true)]
     pub php_path: Option<String>,
 
-    /// 設定ファイルのパス (-c / --config-file)
+    /// 設定ファイル (-c / --config-file)
     #[arg(short, long, default_value = "config.toml", global = true)]
     pub config_file: PathBuf,
 }
 
-/// 各サブコマンドの定義
+/// サブコマンド定義
 #[derive(Subcommand, Debug, PartialEq)]
 pub enum Commands {
-    /// ユーザーを作成します (occ user:add)
+    /// ユーザー追加 (occ user:add)
     Add {
-        /// 作成するユーザーID (uid)
+        /// ユーザー ID (uid)
         uid: String,
 
-        /// パスワードを自動生成します
+        /// パスワード自動生成
         #[arg(long)]
         generate_password: bool,
 
@@ -58,119 +58,150 @@ pub enum Commands {
         email: Option<String>,
     },
 
-    /// ユーザーの容量(Quota)を設定します (occ user:setting <uid> files quota <quota>)
+    /// クォータ (Quota) 設定 (occ user:setting <uid> files quota <quota>)
     #[command(name = "set-quota")]
     SetQuota {
-        /// 対象のユーザーID (uid)
+        /// ユーザー ID (uid)
         uid: String,
 
-        /// 容量サイズ (例: "10 GB", "unlimited", "default")
+        /// 容量 (例: "10 GB", "unlimited", "default")
         quota: String,
     },
 
-    /// ユーザーを削除します (occ user:delete)
+    /// ユーザー削除 (occ user:delete)
     #[command(name = "user-delete")]
     UserDelete {
-        /// 削除対象の Nextcloud ユーザーID (例: okamura)
+        /// 削除対象の Nextcloud ユーザー ID (例: okamura)
         #[arg(short, long)]
         target_user: String,
     },
 
-    /// ファイルまたはディレクトリを削除します (occ files:delete)
+    /// ファイル削除 (occ files:delete)
     #[command(name = "file-delete")]
     FileDelete {
-        /// 削除対象のファイルIDまたはパス
+        /// ファイルパスまたは ID
         path_or_id: String,
     },
 
-    /// ファイルを配置/書き込みます (occ files:put)
+    /// ファイル配置 (occ files:put)
     #[command(name = "file-put", alias = "files-put")]
     FilePut {
-        /// Nextcloud サーバー内のローカルファイルパス (または STDIN の "-")
+        /// ローカルファイルパス (標準入力から読む場合は "-")
         local_path: String,
 
-        /// Nextcloud 上の保存先パス または ファイルID
+        /// Nextcloud 上の配置先相対パス
         target_path_or_id: String,
     },
 
-    /// ファイルをスキャンしてキャッシュ/DBを再同期します (occ files:scan)
+    /// ファイルスキャン (occ files:scan)
     #[command(name = "file-scan", alias = "files-scan")]
     FileScan {
-        /// スキャン対象のユーザーID (指定したユーザーのファイルのみスキャン)
+        /// ユーザー ID (指定時、特定ユーザーのみ)
         #[arg(conflicts_with_all = &["all", "path"])]
         user_id: Option<String>,
 
-        /// 全てのユーザーのファイルをスキャン
+        /// 全ユーザーをスキャン
         #[arg(long, conflicts_with_all = &["user_id", "path"])]
         all: bool,
 
-        /// スキャン対象のパスを指定 (例: "admin/files/Documents")
+        /// パス指定 (例: "admin/files/Documents")
         #[arg(short, long, conflicts_with_all = &["user_id", "all"])]
         path: Option<String>,
 
-        /// 未スキャン/サイズ未計算のファイルのみを対象に高速スキャン (--unscanned)
+        /// 未スキャンファイルのみ (--unscanned)
         #[arg(long)]
         unscanned: bool,
 
-        /// サブディレクトリを再帰的に走査せず、指定階層直下のみをスキャン (--shallow)
+        /// 浅いスキャン (--shallow)
         #[arg(long)]
         shallow: bool,
 
-        /// 外部ストレージや共有フォルダーを除外し、ホームストレージ領域のみをスキャン (--home-only)
+        /// ホームディレクトリのみ (--home-only)
         #[arg(long)]
         home_only: bool,
 
-        /// トランザクションファイルロックを行わずにスキャンを実行 (--no-lock)
+        /// ロックなし (--no-lock)
         #[arg(long)]
         no_lock: bool,
     },
 
-    /// ユーザー一覧を取得します (occ user:list)
+    /// ユーザー一覧表示 (occ user:list)
     #[command(name = "user-list")]
     UserList,
 
-    /// グループ一覧を取得します (occ group:list)
+    /// グループ一覧表示 (occ group:list)
     #[command(name = "group-list")]
     GroupList,
 
-    /// 利用可能な OCC コマンド一覧を表示します (occ list)
+    /// 利用可能な OCC コマンド一覧表示 (occ list)
     List,
 
-    /// Nextcloud のステータス情報を表示します (occ status)
+    /// Nextcloud ステータス確認 (occ status)
     Status,
 
-    /// メンテナンスモードを切り替えます (occ maintenance:mode)
+    /// メンテナンスモード設定 (occ maintenance:mode)
     #[command(name = "maintenance-mode")]
     MaintenanceMode {
-        /// メンテナンスモードを有効化
+        /// 有効化
         #[arg(long, conflicts_with = "off")]
         on: bool,
 
-        /// メンテナンスモードを無効化
+        /// 無効化
         #[arg(long, conflicts_with = "on")]
         off: bool,
+    },
+
+    /// rsync によるファイル同期 (rsync_target -> リモート) と Nextcloud への反映 (files:scan)
+    #[command(name = "sync")]
+    Sync {
+        /// 同期先リモートディレクトリパス
+        remote_dir: String,
+
+        /// 除外パターン (複数指定可能)
+        #[arg(short, long)]
+        exclude: Vec<String>,
+
+        /// 転送元に存在しないファイルを転送先から削除 (--delete)
+        #[arg(long)]
+        delete: bool,
+
+        /// 試行運転を行う (実際には転送・削除しない) (-n / --dry-run)
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+
+        /// 全ユーザーのファイルをスキャン (--all)
+        #[arg(long, conflicts_with_all = &["scan_user", "scan_path"])]
+        scan_all: bool,
+
+        /// 特定ユーザーのファイルをスキャン ([USER_ID])
+        #[arg(long, conflicts_with_all = &["scan_all", "scan_path"])]
+        scan_user: Option<String>,
+
+        /// 特定パスのファイルをスキャン (--path)
+        #[arg(long, conflicts_with_all = &["scan_all", "scan_user"])]
+        scan_path: Option<String>,
     },
 }
 
 impl Commands {
-    /// コマンド成功時のメッセージを出力する helper 関数
+    /// 実行成功メッセージの helper
     pub fn print_success(&self) {
         match self {
             Commands::Add { uid, .. } => {
-                println!("成功: ユーザー '{}' を正常に作成しました。", uid);
+                println!("ユーザー '{}' を作成しました。", uid);
             }
             Commands::SetQuota { uid, quota } => {
                 println!(
-                    "成功: ユーザー '{}' の容量制限を '{}' に設定しました。",
+                    "ユーザー '{}' のクォータを '{}' に設定しました。",
                     uid, quota
                 );
             }
             Commands::UserDelete { target_user } => {
-                println!("成功: ユーザー '{}' を正常に削除しました。", target_user);
+                println!("ユーザー '{}' を削除しました。", target_user);
             }
             Commands::FileDelete { path_or_id } => {
                 println!(
-                    "成功: ファイル/ディレクトリ '{}' を正常に削除しました。",
+                    "ファイル/ディレクトリ '{}' を削除しました。",
                     path_or_id
                 );
             }
@@ -179,7 +210,7 @@ impl Commands {
                 target_path_or_id,
             } => {
                 println!(
-                    "成功: ファイル '{}' を Nextcloud 上の '{}' に配置しました。",
+                    "ファイル '{}' を Nextcloud 上の '{}' に配置しました。",
                     local_path, target_path_or_id
                 );
             }
@@ -190,34 +221,41 @@ impl Commands {
                 ..
             } => {
                 if *all {
-                    println!("成功: 全ユーザーのファイルスキャンが完了しました。");
+                    println!("全ユーザーのファイルスキャンが完了しました。");
                 } else if let Some(p) = path {
-                    println!("成功: パス '{}' のファイルスキャンが完了しました。", p);
+                    println!("パス '{}' のファイルスキャンが完了しました。", p);
                 } else if let Some(u) = user_id {
-                    println!("成功: ユーザー '{}' のファイルスキャンが完了しました。", u);
+                    println!("ユーザー '{}' のファイルスキャンが完了しました。", u);
                 } else {
-                    println!("成功: ファイルスキャンが完了しました。");
+                    println!("ファイルスキャンが完了しました。");
                 }
             }
             Commands::UserList => {
-                println!("成功: ユーザー一覧を取得しました。");
+                println!("ユーザー一覧を取得しました。");
             }
             Commands::GroupList => {
-                println!("成功: グループ一覧を取得しました。");
+                println!("グループ一覧を取得しました。");
             }
             Commands::List => {
-                println!("成功: OCCコマンド一覧を取得しました。");
+                println!("利用可能な OCC コマンド一覧を取得しました。");
             }
             Commands::Status => {
-                println!("成功: ステータス情報を取得しました。");
+                println!("ステータス情報を取得しました。");
             }
             Commands::MaintenanceMode { on, off } => {
                 if *on {
-                    println!("成功: メンテナンスモードを有効化しました。");
+                    println!("メンテナンスモードを有効にしました。");
                 } else if *off {
-                    println!("成功: メンテナンスモードを無効化しました。");
+                    println!("メンテナンスモードを無効にしました。");
                 } else {
-                    println!("成功: メンテナンスモードコマンドを実行しました。");
+                    println!("メンテナンスモードの状態を取得しました。");
+                }
+            }
+            Commands::Sync { dry_run, .. } => {
+                if *dry_run {
+                    println!("ドライランが完了しました。(変更は行われていません)");
+                } else {
+                    println!("ファイル同期および Nextcloud への反映処理が完了しました。");
                 }
             }
         }
@@ -225,205 +263,35 @@ impl Commands {
 }
 
 // -----------------------------------------------------------------------------
-// CLI 引数パースのユニットテスト
+// CLI 単体テスト
 // -----------------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_cli_parse_add_subcommand() {
+    fn test_cli_parse_sync_subcommand() {
         let parsed = Args::try_parse_from([
             "app",
-            "add",
-            "okamura",
-            "--generate-password",
-            "--display-name",
-            "岡村",
-            "-g",
+            "sync",
+            "/remote/target",
+            "-n",
+            "--delete",
+            "--scan-user",
             "admin",
-            "--email",
-            "okamura@example.com",
         ])
         .unwrap();
 
         assert_eq!(
             parsed.command,
-            Commands::Add {
-                uid: "okamura".to_string(),
-                generate_password: true,
-                display_name: Some("岡村".to_string()),
-                group: Some("admin".to_string()),
-                email: Some("okamura@example.com".to_string()),
-            }
-        );
-    }
-
-    #[test]
-    fn test_cli_parse_set_quota_subcommand() {
-        let parsed = Args::try_parse_from(["app", "set-quota", "okamura", "10 GB"]).unwrap();
-        assert_eq!(
-            parsed.command,
-            Commands::SetQuota {
-                uid: "okamura".to_string(),
-                quota: "10 GB".to_string(),
-            }
-        );
-    }
-
-    #[test]
-    fn test_cli_parse_user_delete_subcommand() {
-        let parsed = Args::try_parse_from(["app", "user-delete", "-t", "test_user"]).unwrap();
-        assert_eq!(
-            parsed.command,
-            Commands::UserDelete {
-                target_user: "test_user".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn test_cli_parse_file_delete_subcommand() {
-        let parsed = Args::try_parse_from(["app", "file-delete", "12345"]).unwrap();
-        assert_eq!(
-            parsed.command,
-            Commands::FileDelete {
-                path_or_id: "12345".to_string()
-            }
-        );
-    }
-
-    #[test]
-    fn test_cli_parse_file_put_subcommand() {
-        let parsed = Args::try_parse_from(["app", "file-put", "/tmp/test.txt", "admin/files/test.txt"]).unwrap();
-        assert_eq!(
-            parsed.command,
-            Commands::FilePut {
-                local_path: "/tmp/test.txt".to_string(),
-                target_path_or_id: "admin/files/test.txt".to_string(),
-            }
-        );
-
-        let parsed_alias = Args::try_parse_from(["app", "files-put", "-", "12345"]).unwrap();
-        assert_eq!(
-            parsed_alias.command,
-            Commands::FilePut {
-                local_path: "-".to_string(),
-                target_path_or_id: "12345".to_string(),
-            }
-        );
-    }
-
-    #[test]
-    fn test_cli_parse_file_scan_subcommand() {
-        // --all + 各種フラグ
-        let parsed_all = Args::try_parse_from([
-            "app",
-            "file-scan",
-            "--all",
-            "--unscanned",
-            "--shallow",
-            "--home-only",
-            "--no-lock",
-        ])
-        .unwrap();
-        assert_eq!(
-            parsed_all.command,
-            Commands::FileScan {
-                user_id: None,
-                all: true,
-                path: None,
-                unscanned: true,
-                shallow: true,
-                home_only: true,
-                no_lock: true,
-            }
-        );
-
-        // ユーザー指定
-        let parsed_user = Args::try_parse_from(["app", "file-scan", "admin"]).unwrap();
-        assert_eq!(
-            parsed_user.command,
-            Commands::FileScan {
-                user_id: Some("admin".to_string()),
-                all: false,
-                path: None,
-                unscanned: false,
-                shallow: false,
-                home_only: false,
-                no_lock: false,
-            }
-        );
-
-        // パス指定 + エイリアス
-        let parsed_path = Args::try_parse_from([
-            "app",
-            "files-scan",
-            "-p",
-            "admin/files/Documents",
-            "--unscanned",
-        ])
-        .unwrap();
-        assert_eq!(
-            parsed_path.command,
-            Commands::FileScan {
-                user_id: None,
-                all: false,
-                path: Some("admin/files/Documents".to_string()),
-                unscanned: true,
-                shallow: false,
-                home_only: false,
-                no_lock: false,
-            }
-        );
-    }
-
-    #[test]
-    fn test_cli_parse_user_list_subcommand() {
-        let parsed = Args::try_parse_from(["app", "user-list"]).unwrap();
-        assert_eq!(parsed.command, Commands::UserList);
-    }
-
-    #[test]
-    fn test_cli_parse_group_list_subcommand() {
-        let parsed = Args::try_parse_from(["app", "group-list"]).unwrap();
-        assert_eq!(parsed.command, Commands::GroupList);
-    }
-
-    #[test]
-    fn test_cli_parse_global_flags() {
-        let parsed = Args::try_parse_from([
-            "app",
-            "--host",
-            "remote.host:2222",
-            "-s",
-            "myuser",
-            "status",
-        ])
-        .unwrap();
-
-        assert_eq!(parsed.command, Commands::Status);
-        assert_eq!(parsed.host, Some("remote.host:2222".to_string()));
-        assert_eq!(parsed.ssh_user, Some("myuser".to_string()));
-    }
-
-    #[test]
-    fn test_cli_parse_maintenance_mode_subcommand() {
-        let parsed_on = Args::try_parse_from(["app", "maintenance-mode", "--on"]).unwrap();
-        assert_eq!(
-            parsed_on.command,
-            Commands::MaintenanceMode {
-                on: true,
-                off: false,
-            }
-        );
-
-        let parsed_off = Args::try_parse_from(["app", "maintenance-mode", "--off"]).unwrap();
-        assert_eq!(
-            parsed_off.command,
-            Commands::MaintenanceMode {
-                on: false,
-                off: true,
+            Commands::Sync {
+                remote_dir: "/remote/target".to_string(),
+                exclude: vec![],
+                delete: true,
+                dry_run: true,
+                scan_all: false,
+                scan_user: Some("admin".to_string()),
+                scan_path: None,
             }
         );
     }

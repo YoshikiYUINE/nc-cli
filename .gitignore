@@ -23,3 +23,6 @@ Cargo.lock
 
 # 実際の認証情報・個人のパスが書かれたファイルを無視
 config.toml
+
+# rsync 向けのフォルダーは中身を含めてcommitしない
+rsync_target/
