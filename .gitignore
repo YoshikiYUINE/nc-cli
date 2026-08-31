@@ -25,4 +25,4 @@ Cargo.lock
 config.toml
 
 # rsync 向けのフォルダーは中身を含めてcommitしない
-rsync_target/
+rsync_target/*
