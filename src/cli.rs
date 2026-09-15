@@ -200,10 +200,7 @@ impl Commands {
                 println!("ユーザー '{}' を削除しました。", target_user);
             }
             Commands::FileDelete { path_or_id } => {
-                println!(
-                    "ファイル/ディレクトリ '{}' を削除しました。",
-                    path_or_id
-                );
+                println!("ファイル/ディレクトリ '{}' を削除しました。", path_or_id);
             }
             Commands::FilePut {
                 local_path,
@@ -215,10 +212,7 @@ impl Commands {
                 );
             }
             Commands::FileScan {
-                user_id,
-                all,
-                path,
-                ..
+                user_id, all, path, ..
             } => {
                 if *all {
                     println!("全ユーザーのファイルスキャンが完了しました。");
