@@ -26,3 +26,5 @@ config.toml
 
 # rsync 向けのフォルダーは中身を含めてcommitしない
 rsync_target/*
+
+.DS_STORE
