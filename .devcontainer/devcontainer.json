@@ -38,5 +38,8 @@
     // コンテナ起動後に実行するコマンド (最新ツールチェーンのアップデートなど)
     "postCreateCommand": "rustup update stable && cargo --version",
     // コンテナ内での非 root ユーザー利用
-    "remoteUser": "vscode"
+    "remoteUser": "vscode",
+    // Docker内のrootユーザーではなく一般ユーザー（vscode等）を使う場合
+    // ホストOSのユーザーID（UID/GID）と、コンテナ内のユーザーIDを自動的に一致させる設定
+    "updateRemoteUserUID": true
 }
