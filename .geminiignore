@@ -1,2 +1,3 @@
 # 実際の認証情報・個人のパスが書かれたファイルを読み込まない
+# Antigravityの設定（Cmd + , または Ctrl + ,）から 「Strict Mode（厳格モード）」、もしくはターミナルの実行ポリシー（Terminal Execution Policy）を 「Request Review（毎回確認）」 に設定しておくことを強く推奨します。
 config.toml
