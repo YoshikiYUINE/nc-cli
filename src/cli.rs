@@ -93,6 +93,25 @@ pub enum Commands {
         target_path_or_id: String,
     },
 
+    /// ファイル取得 (occ files:get)
+    #[command(name = "file-get", alias = "files-get")]
+    FileGet {
+        /// 取得対象のファイルパスまたは ID
+        path_or_id: String,
+
+        /// 出力先ファイル名 (未指定時は downloads フォルダー内に保存、"-" の場合は標準出力)
+        #[arg(value_name = "DESTINATION")]
+        destination: Option<String>,
+
+        /// 出力先ファイル名 (-o / --output)
+        #[arg(short, long)]
+        output: Option<String>,
+
+        /// 標準出力へ出力 (--stdout)
+        #[arg(long)]
+        stdout: bool,
+    },
+
     /// ファイルスキャン (occ files:scan)
     #[command(name = "file-scan", alias = "files-scan")]
     FileScan {
@@ -211,6 +230,14 @@ impl Commands {
                     local_path, target_path_or_id
                 );
             }
+            Commands::FileGet { path_or_id, .. } => {
+                if let Some(filename) = self.get_file_get_filename() {
+                    println!(
+                        "ファイル '{}' を 'downloads/{}' にダウンロードしました。",
+                        path_or_id, filename
+                    );
+                }
+            }
             Commands::FileScan {
                 user_id, all, path, ..
             } => {
@@ -254,6 +281,56 @@ impl Commands {
             }
         }
     }
+
+    /// FileGet の出力先が標準出力かどうかを判定する
+    pub fn is_file_get_stdout(&self) -> bool {
+        if let Commands::FileGet {
+            destination,
+            output,
+            stdout,
+            ..
+        } = self
+        {
+            *stdout
+                || destination.as_deref() == Some("-")
+                || output.as_deref() == Some("-")
+        } else {
+            false
+        }
+    }
+
+    /// FileGet の保存先ファイル名を取得する（標準出力の場合は None）
+    pub fn get_file_get_filename(&self) -> Option<String> {
+        if let Commands::FileGet {
+            path_or_id,
+            destination,
+            output,
+            ..
+        } = self
+        {
+            if self.is_file_get_stdout() {
+                return None;
+            }
+
+            let specified = output.as_ref().or(destination.as_ref());
+            if let Some(name) = specified {
+                let filename = std::path::Path::new(name)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or(name);
+                Some(filename.to_string())
+            } else {
+                let trimmed = path_or_id.trim_end_matches('/');
+                let filename = std::path::Path::new(trimmed)
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("downloaded_file");
+                Some(filename.to_string())
+            }
+        } else {
+            None
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -287,6 +364,130 @@ mod tests {
                 scan_user: Some("admin".to_string()),
                 scan_path: None,
             }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_get_minimal_id() {
+        let parsed = Args::try_parse_from(["app", "file-get", "12345"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileGet {
+                path_or_id: "12345".to_string(),
+                destination: None,
+                output: None,
+                stdout: false,
+            }
+        );
+        assert!(!parsed.command.is_file_get_stdout());
+        assert_eq!(parsed.command.get_file_get_filename(), Some("12345".to_string()));
+    }
+
+    #[test]
+    fn test_cli_parse_file_get_path_alias() {
+        let parsed = Args::try_parse_from([
+            "app",
+            "files-get",
+            "/admin/files/Documents/report.pdf",
+        ])
+        .unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileGet {
+                path_or_id: "/admin/files/Documents/report.pdf".to_string(),
+                destination: None,
+                output: None,
+                stdout: false,
+            }
+        );
+        assert!(!parsed.command.is_file_get_stdout());
+        assert_eq!(
+            parsed.command.get_file_get_filename(),
+            Some("report.pdf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_get_stdout_flag() {
+        let parsed =
+            Args::try_parse_from(["app", "file-get", "12345", "--stdout"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileGet {
+                path_or_id: "12345".to_string(),
+                destination: None,
+                output: None,
+                stdout: true,
+            }
+        );
+        assert!(parsed.command.is_file_get_stdout());
+        assert_eq!(parsed.command.get_file_get_filename(), None);
+    }
+
+    #[test]
+    fn test_cli_parse_file_get_stdout_hyphen_destination() {
+        let parsed = Args::try_parse_from(["app", "file-get", "12345", "-"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileGet {
+                path_or_id: "12345".to_string(),
+                destination: Some("-".to_string()),
+                output: None,
+                stdout: false,
+            }
+        );
+        assert!(parsed.command.is_file_get_stdout());
+        assert_eq!(parsed.command.get_file_get_filename(), None);
+    }
+
+    #[test]
+    fn test_cli_parse_file_get_output_option() {
+        let parsed = Args::try_parse_from([
+            "app",
+            "file-get",
+            "12345",
+            "-o",
+            "custom.pdf",
+        ])
+        .unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileGet {
+                path_or_id: "12345".to_string(),
+                destination: None,
+                output: Some("custom.pdf".to_string()),
+                stdout: false,
+            }
+        );
+        assert!(!parsed.command.is_file_get_stdout());
+        assert_eq!(
+            parsed.command.get_file_get_filename(),
+            Some("custom.pdf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_get_positional_destination() {
+        let parsed = Args::try_parse_from([
+            "app",
+            "file-get",
+            "12345",
+            "custom.pdf",
+        ])
+        .unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileGet {
+                path_or_id: "12345".to_string(),
+                destination: Some("custom.pdf".to_string()),
+                output: None,
+                stdout: false,
+            }
+        );
+        assert!(!parsed.command.is_file_get_stdout());
+        assert_eq!(
+            parsed.command.get_file_get_filename(),
+            Some("custom.pdf".to_string())
         );
     }
 }

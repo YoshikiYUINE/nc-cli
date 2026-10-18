@@ -27,4 +27,7 @@ config.toml
 # rsync 向けのフォルダーは中身を含めてcommitしない
 rsync_target/*
 
+# ダウンロード先フォルダーは中身を含めてcommitしない
+downloads/*
+
 .DS_STORE

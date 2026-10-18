@@ -173,7 +173,39 @@ cargo run -- file-put /tmp/data.csv 12345
 
 ```
 
-#### 2. ファイル/ディレクトリの削除 (`file-delete`)
+#### 2. ファイルの取得・ダウンロード (`file-get` / `files-get`)
+
+ファイルIDまたは Nextcloud パスを指定してファイルをダウンロードします (`occ files:get`)。
+ダウンロード先は `rsync_target` と同じ階層の `downloads/` フォルダー内に自動保存されるか、標準出力へ出力できます。
+
+※ ファイルIDで指定した場合、Nextcloud から実際のファイル名（例: `report.pdf`）を自動取得してその名前で保存します（`-o` による明示的な指定も可能）。
+※ PHP 環境に起因するサーバー側警告（PCNTL 拡張警告など）が標準出力に含まれている場合、自動的にファイルデータから除去され、標準エラー出力に分離されるため、ダウンロード対象ファイルが破損することはありません。
+
+```bash
+# パス指定でダウンロード (downloads/report.pdf に保存)
+cargo run -- file-get admin/files/Documents/report.pdf
+
+# ファイルID指定でダウンロード (自動解決されたファイル名で downloads/ に保存)
+cargo run -- file-get 12345
+
+# 保存ファイル名を指定してダウンロード (downloads/custom_report.pdf に保存)
+cargo run -- file-get 12345 -o custom_report.pdf
+
+# 標準出力へ出力 (--stdout)
+cargo run -- file-get admin/files/Documents/report.pdf --stdout > report.pdf
+
+# 標準出力へ出力 ("-" 指定)
+cargo run -- file-get 12345 - > report.pdf
+```
+
+| オプション / 引数 | 短縮 | デフォルト値 | 説明 |
+| --- | --- | --- | --- |
+| `<PATH_OR_ID>` | - | (必須) | 取得対象の Nextcloud 相対パスまたはファイル ID |
+| `[DESTINATION]` | - | - | 保存先ファイル名（`-` 指定時は標準出力へ出力） |
+| `-o, --output <FILE>` | `-o` | - | 保存先ファイル名（`-` 指定時は標準出力へ出力） |
+| `--stdout` | - | - | ファイル内容を標準出力へ直接出力 |
+
+#### 3. ファイル/ディレクトリの削除 (`file-delete`)
 
 ファイルIDまたはパスを指定して Nextcloud 上のファイルを削除します (`occ files:delete`)。
 
@@ -186,7 +218,7 @@ cargo run -- file-delete 12345
 
 ```
 
-#### 3. ファイルのスキャン・再同期 (`file-scan` / `files-scan`)
+#### 4. ファイルのスキャン・再同期 (`file-scan` / `files-scan`)
 
 Nextcloud のファイルキャッシュと実ストレージを再同期します (`occ files:scan --output=json`)。
 

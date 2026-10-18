@@ -49,6 +49,9 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
                 php_path, occ_path, local_path, target_path_or_id
             )
         }
+        Commands::FileGet { path_or_id, .. } => {
+            format!("{} {} files:get \"{}\" -", php_path, occ_path, path_or_id)
+        }
         Commands::FileScan {
             user_id,
             all,
@@ -105,6 +108,94 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
         }
         Commands::Sync { .. } => String::new(),
     }
+}
+
+/// info:file リモート実行コマンド文字列を構築する関数
+pub fn build_info_file_command(php_path: &str, occ_path: &str, path_or_id: &str) -> String {
+    format!("{} {} info:file \"{}\"", php_path, occ_path, path_or_id)
+}
+
+/// PHP CLI 実行時に標準出力の先頭に含まれる可能性のある警告メッセージ（PCNTL や PHP Warning 等）を除去する
+pub fn strip_php_cli_warnings(raw: &[u8]) -> (&[u8], Vec<String>) {
+    let mut offset = 0;
+    let mut warnings = Vec::new();
+
+    while offset < raw.len() {
+        // 次の改行 (\n) を探す
+        let next_newline = raw[offset..].iter().position(|&b| b == b'\n');
+        let line_end = match next_newline {
+            Some(pos) => offset + pos,
+            None => raw.len(),
+        };
+
+        let mut line_bytes = &raw[offset..line_end];
+        // 末尾の \r を除外
+        if let Some(&b'\r') = line_bytes.last() {
+            line_bytes = &line_bytes[..line_bytes.len() - 1];
+        }
+
+        // 行が UTF-8 文字列として警告パターンに一致するかチェック
+        if let Ok(line_str) = std::str::from_utf8(line_bytes) {
+            let trimmed = line_str.trim();
+            if is_php_warning_line(trimmed) {
+                if !trimmed.is_empty() {
+                    warnings.push(trimmed.to_string());
+                }
+                // 改行文字分スキップ
+                offset = if line_end < raw.len() {
+                    line_end + 1
+                } else {
+                    raw.len()
+                };
+                continue;
+            }
+        }
+
+        // 警告行でなければループ終了
+        break;
+    }
+
+    (&raw[offset..], warnings)
+}
+
+/// 対象行が PHP / Nextcloud の警告メッセージかどうかを判定する
+pub fn is_php_warning_line(line: &str) -> bool {
+    line.starts_with("The process control (PCNTL) extensions are required")
+        || line.starts_with("Additionally the function 'pcntl_signal'")
+        || line.starts_with("PHP Warning:")
+        || line.starts_with("PHP Notice:")
+        || line.starts_with("PHP Deprecated:")
+        || line.starts_with("PHP Strict Standards:")
+        || line.starts_with("Xdebug:")
+}
+
+/// occ info:file の出力からファイル名を取得する
+pub fn parse_filename_from_info_output(output: &str) -> Option<String> {
+    for line in output.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || is_php_warning_line(trimmed) {
+            continue;
+        }
+        // エラー出力等の場合は失敗とみなす
+        if trimmed.starts_with("<error>")
+            || (trimmed.starts_with("file ") && trimmed.ends_with("not found"))
+        {
+            return None;
+        }
+        // パス区切り文字を含まないファイル名の場合
+        if !trimmed.contains('/') && !trimmed.contains('\\') {
+            return Some(trimmed.to_string());
+        } else {
+            // パスが含まれている場合はファイル名部分を抽出
+            let filename = std::path::Path::new(trimmed)
+                .file_name()
+                .and_then(|n| n.to_str());
+            if let Some(f) = filename {
+                return Some(f.to_string());
+            }
+        }
+    }
+    None
 }
 
 // -----------------------------------------------------------------------------
@@ -187,6 +278,33 @@ mod tests {
         assert_eq!(
             result,
             "php ./occ files:put \"/tmp/sample.txt\" \"admin/files/sample.txt\""
+        );
+    }
+
+    #[test]
+    fn test_build_occ_command_file_get_id() {
+        let cmd = Commands::FileGet {
+            path_or_id: "12345".to_string(),
+            destination: None,
+            output: None,
+            stdout: false,
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ files:get \"12345\" -");
+    }
+
+    #[test]
+    fn test_build_occ_command_file_get_path() {
+        let cmd = Commands::FileGet {
+            path_or_id: "/layla/files/Documents/report.pdf".to_string(),
+            destination: None,
+            output: None,
+            stdout: true,
+        };
+        let result = build_occ_command(&cmd, "/usr/bin/php", "/var/www/nextcloud/occ");
+        assert_eq!(
+            result,
+            "/usr/bin/php /var/www/nextcloud/occ files:get \"/layla/files/Documents/report.pdf\" -"
         );
     }
 
@@ -278,5 +396,73 @@ mod tests {
         };
         let result_off = build_occ_command(&cmd_off, "php", "./occ");
         assert_eq!(result_off, "php ./occ maintenance:mode --off");
+    }
+
+    #[test]
+    fn test_build_info_file_command() {
+        let result = build_info_file_command("php", "./occ", "12345");
+        assert_eq!(result, "php ./occ info:file \"12345\"");
+    }
+
+    #[test]
+    fn test_strip_php_cli_warnings_pcntl() {
+        let mut raw = Vec::new();
+        raw.extend_from_slice(b"The process control (PCNTL) extensions are required in case you want to interrupt long running commands - see https://www.php.net/manual/en/book.pcntl.php\n");
+        raw.extend_from_slice(b"Additionally the function 'pcntl_signal' and 'pcntl_signal_dispatch' need to be enabled in your php.ini.\n");
+        raw.extend_from_slice(b"%PDF-1.4 binary content\nsecond line");
+
+        let (clean, warnings) = strip_php_cli_warnings(&raw);
+        assert_eq!(clean, b"%PDF-1.4 binary content\nsecond line");
+        assert_eq!(warnings.len(), 2);
+        assert!(warnings[0].starts_with("The process control"));
+        assert!(warnings[1].starts_with("Additionally the function"));
+    }
+
+    #[test]
+    fn test_strip_php_cli_warnings_crlf() {
+        let mut raw = Vec::new();
+        raw.extend_from_slice(b"The process control (PCNTL) extensions are required in case you want to interrupt long running commands - see https://www.php.net/manual/en/book.pcntl.php\r\n");
+        raw.extend_from_slice(b"Additionally the function 'pcntl_signal' and 'pcntl_signal_dispatch' need to be enabled in your php.ini.\r\n");
+        raw.extend_from_slice(b"Hello world\r\n");
+
+        let (clean, warnings) = strip_php_cli_warnings(&raw);
+        assert_eq!(clean, b"Hello world\r\n");
+        assert_eq!(warnings.len(), 2);
+    }
+
+    #[test]
+    fn test_strip_php_cli_warnings_clean_content() {
+        let raw = b"Clean content\nSecond line\n";
+        let (clean, warnings) = strip_php_cli_warnings(raw);
+        assert_eq!(clean, raw);
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn test_parse_filename_from_info_output_with_warnings() {
+        let output = r#"The process control (PCNTL) extensions are required in case you want to interrupt long running commands - see https://www.php.net/manual/en/book.pcntl.php
+Additionally the function 'pcntl_signal' and 'pcntl_signal_dispatch' need to be enabled in your php.ini.
+report_2026.pdf
+  fileid: 12345
+  mimetype: application/pdf
+"#;
+        let filename = parse_filename_from_info_output(output);
+        assert_eq!(filename, Some("report_2026.pdf".to_string()));
+    }
+
+    #[test]
+    fn test_parse_filename_from_info_output_with_path() {
+        let output = r#"/layla/files/Documents/important.docx
+  fileid: 67890
+"#;
+        let filename = parse_filename_from_info_output(output);
+        assert_eq!(filename, Some("important.docx".to_string()));
+    }
+
+    #[test]
+    fn test_parse_filename_from_info_output_error() {
+        let output = "<error>file 99999 not found</error>\n";
+        let filename = parse_filename_from_info_output(output);
+        assert_eq!(filename, None);
     }
 }

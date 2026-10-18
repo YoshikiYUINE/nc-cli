@@ -6,7 +6,7 @@ pub mod sync;
 
 use crate::cli::{Args, Commands};
 use crate::config::Config;
-use crate::ssh::{execute_remote_command, SshConfig};
+use crate::ssh::{execute_remote_command, execute_remote_command_bytes, SshConfig};
 use crate::sync::{run_rsync, SyncParams};
 
 /// アプリケーションメインロジックの統括実行関数
@@ -118,6 +118,93 @@ pub fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             }
             println!("\n----------------------------------------");
             args.command.print_success();
+        }
+        Commands::FileGet { path_or_id, .. } => {
+            let host_with_port = if let Some(p) = parsed_port {
+                format!("{}:{}", host, p)
+            } else {
+                host
+            };
+
+            let is_stdout = args.command.is_file_get_stdout();
+            let is_numeric_id = path_or_id.chars().all(|c| c.is_ascii_digit());
+
+            // 1. ファイル名が未指定かつファイルID（数字のみ）の場合、Nextcloud から実際のファイル名を取得する
+            let mut resolved_filename = args.command.get_file_get_filename();
+            if !is_stdout && resolved_filename.as_deref() == Some(path_or_id.as_str()) && is_numeric_id {
+                let info_cmd = occ::build_info_file_command(&php_path, &occ_path, path_or_id);
+                let ssh_config = SshConfig {
+                    host: host_with_port.clone(),
+                    ssh_user: ssh_user.clone(),
+                    identity_file: identity_file.clone(),
+                };
+                // info:file コマンドを実行してファイル名を解決
+                if let Ok(info_result) = execute_remote_command_bytes(&ssh_config, &info_cmd, true) {
+                    if info_result.exit_status == 0 {
+                        let info_text = String::from_utf8_lossy(&info_result.stdout);
+                        if let Some(real_name) = occ::parse_filename_from_info_output(&info_text) {
+                            resolved_filename = Some(real_name);
+                        }
+                    }
+                }
+            }
+
+            // 2. occ files:get コマンドを実行
+            let occ_command = occ::build_occ_command(&args.command, &php_path, &occ_path);
+            let ssh_config = SshConfig {
+                host: host_with_port,
+                ssh_user,
+                identity_file,
+            };
+
+            let result = execute_remote_command_bytes(&ssh_config, &occ_command, is_stdout)?;
+
+            if result.exit_status != 0 {
+                let err_msg = if !result.stderr.trim().is_empty() {
+                    result.stderr.trim().to_string()
+                } else if !result.stdout.is_empty() {
+                    String::from_utf8_lossy(&result.stdout).trim().to_string()
+                } else {
+                    format!("終了コード: {}", result.exit_status)
+                };
+                return Err(
+                    format!("ファイル '{}' の取得に失敗しました: {}", path_or_id, err_msg).into(),
+                );
+            }
+
+            // 3. PHP CLI の警告メッセージ（PCNTL や PHP Warning 等）をファイルデータから除去
+            let (clean_stdout, warnings) = occ::strip_php_cli_warnings(&result.stdout);
+            for w in &warnings {
+                eprintln!("[サーバー警告] {}", w);
+            }
+
+            if is_stdout {
+                use std::io::Write;
+                std::io::stdout().write_all(clean_stdout)?;
+                std::io::stdout().flush()?;
+            } else {
+                let filename = resolved_filename.unwrap_or_else(|| "downloaded_file".to_string());
+
+                let downloads_dir = std::path::Path::new("downloads");
+                if !downloads_dir.exists() {
+                    std::fs::create_dir_all(downloads_dir)?;
+                }
+
+                let target_path = downloads_dir.join(&filename);
+                std::fs::write(&target_path, clean_stdout)?;
+
+                if !result.stderr.is_empty() {
+                    eprintln!("\n--- [標準エラー出力] ---\n{}", result.stderr.trim());
+                }
+
+                println!("\n----------------------------------------");
+                println!(
+                    "ファイル '{}' を 'downloads/{}' にダウンロードしました。(サイズ: {} バイト)",
+                    path_or_id,
+                    filename,
+                    clean_stdout.len()
+                );
+            }
         }
         _ => {
             // 既存の OCC コマンド実行
