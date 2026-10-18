@@ -234,6 +234,29 @@ cargo run -- file-scan -p "admin/files/Documents"
 
 ```
 
+#### 5. ファイル情報の取得 (`file-info` / `files-info` / `info-file`)
+
+ファイルIDまたは Nextcloud パスを指定してファイルの詳細情報を取得します (`occ info:file <path_or_id>`)。
+
+```bash
+# ファイルID指定で情報を取得
+cargo run -- file-info 12345
+
+# パス指定で情報を取得
+cargo run -- file-info "admin/files/Documents/report.pdf"
+
+# 装飾なしでコマンドの出力結果のみを出力 (--raw / スクリプトやパイプライン向け)
+cargo run -- file-info 12345 --raw
+
+# エイリアス (files-info, info-file) も利用可能
+cargo run -- info-file 12345 --raw
+```
+
+| オプション / 引数 | 短縮 | デフォルト値 | 説明 |
+| --- | --- | --- | --- |
+| `<PATH_OR_ID>` | - | (必須) | 取得対象の Nextcloud 相対パスまたはファイル ID |
+| `--raw` | - | `false` | ヘッダーや成功メッセージを除外し、コマンド実行結果テキストのみを出力 |
+
 ---
 
 ### ファイル同期とスキャン (`sync`)

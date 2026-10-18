@@ -206,6 +206,44 @@ pub fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
+        Commands::FileInfo { path_or_id, raw } => {
+            let host_with_port = if let Some(p) = parsed_port {
+                format!("{}:{}", host, p)
+            } else {
+                host
+            };
+
+            let ssh_config = SshConfig {
+                host: host_with_port,
+                ssh_user,
+                identity_file,
+            };
+
+            if *raw {
+                let output_str = get_file_info(&ssh_config, &php_path, &occ_path, path_or_id)?;
+                println!("{}", output_str);
+            } else {
+                let occ_command = occ::build_occ_command(&args.command, &php_path, &occ_path);
+                let result = execute_remote_command(&ssh_config, &occ_command)?;
+
+                if !result.stdout.is_empty() {
+                    println!("\n--- [標準出力] ---\n{}", result.stdout.trim());
+                }
+                if !result.stderr.is_empty() {
+                    eprintln!("\n--- [標準エラー出力] ---\n{}", result.stderr.trim());
+                }
+
+                println!("\n----------------------------------------");
+                if result.exit_status == 0 {
+                    args.command.print_success();
+                } else {
+                    eprintln!(
+                        "失敗: コマンドが終了コード {} で終了しました。",
+                        result.exit_status
+                    );
+                }
+            }
+        }
         _ => {
             // 既存の OCC コマンド実行
             let host_with_port = if let Some(p) = parsed_port {
@@ -243,4 +281,35 @@ pub fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+/// Nextcloud 上のファイル情報を取得する関数
+pub fn get_file_info(
+    ssh_config: &SshConfig,
+    php_path: &str,
+    occ_path: &str,
+    path_or_id: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let occ_command = occ::build_info_file_command(php_path, occ_path, path_or_id);
+    let result = execute_remote_command_bytes(ssh_config, &occ_command, true)?;
+
+    if result.exit_status != 0 {
+        let err_msg = if !result.stderr.trim().is_empty() {
+            result.stderr.trim().to_string()
+        } else if !result.stdout.is_empty() {
+            String::from_utf8_lossy(&result.stdout).trim().to_string()
+        } else {
+            format!("終了コード: {}", result.exit_status)
+        };
+        return Err(format!("ファイル情報の取得に失敗しました: {}", err_msg).into());
+    }
+
+    // PHP CLI の警告メッセージ（PCNTL や PHP Warning 等）を除去
+    let (clean_stdout, warnings) = occ::strip_php_cli_warnings(&result.stdout);
+    for w in &warnings {
+        eprintln!("[サーバー警告] {}", w);
+    }
+
+    let output_str = String::from_utf8_lossy(clean_stdout).trim().to_string();
+    Ok(output_str)
 }

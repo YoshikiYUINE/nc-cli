@@ -106,6 +106,9 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
                 format!("{} {} maintenance:mode", php_path, occ_path)
             }
         }
+        Commands::FileInfo { path_or_id, .. } => {
+            build_info_file_command(php_path, occ_path, path_or_id)
+        }
         Commands::Sync { .. } => String::new(),
     }
 }
@@ -402,6 +405,19 @@ mod tests {
     fn test_build_info_file_command() {
         let result = build_info_file_command("php", "./occ", "12345");
         assert_eq!(result, "php ./occ info:file \"12345\"");
+    }
+
+    #[test]
+    fn test_build_occ_command_file_info() {
+        let cmd = Commands::FileInfo {
+            path_or_id: "admin/files/Documents/test.txt".to_string(),
+            raw: false,
+        };
+        let result = build_occ_command(&cmd, "/usr/bin/php", "/var/www/nextcloud/occ");
+        assert_eq!(
+            result,
+            "/usr/bin/php /var/www/nextcloud/occ info:file \"admin/files/Documents/test.txt\""
+        );
     }
 
     #[test]

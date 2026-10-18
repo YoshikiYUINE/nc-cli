@@ -144,6 +144,17 @@ pub enum Commands {
         no_lock: bool,
     },
 
+    /// ファイル情報取得 (occ info:file)
+    #[command(name = "file-info", alias = "files-info", alias = "info-file")]
+    FileInfo {
+        /// 対象のファイルパスまたは ID
+        path_or_id: String,
+
+        /// 装飾なしでコマンドの出力結果のみを出力 (--raw)
+        #[arg(long)]
+        raw: bool,
+    },
+
     /// ユーザー一覧表示 (occ user:list)
     #[command(name = "user-list")]
     UserList,
@@ -250,6 +261,9 @@ impl Commands {
                 } else {
                     println!("ファイルスキャンが完了しました。");
                 }
+            }
+            Commands::FileInfo { path_or_id, .. } => {
+                println!("ファイル '{}' の情報を取得しました。", path_or_id);
             }
             Commands::UserList => {
                 println!("ユーザー一覧を取得しました。");
@@ -488,6 +502,59 @@ mod tests {
         assert_eq!(
             parsed.command.get_file_get_filename(),
             Some("custom.pdf".to_string())
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_info_basic() {
+        let parsed = Args::try_parse_from(["app", "file-info", "12345"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileInfo {
+                path_or_id: "12345".to_string(),
+                raw: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_info_raw() {
+        let parsed = Args::try_parse_from([
+            "app",
+            "file-info",
+            "admin/files/Documents/memo.txt",
+            "--raw",
+        ])
+        .unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::FileInfo {
+                path_or_id: "admin/files/Documents/memo.txt".to_string(),
+                raw: true,
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_file_info_aliases() {
+        let parsed_files_info =
+            Args::try_parse_from(["app", "files-info", "12345"]).unwrap();
+        assert_eq!(
+            parsed_files_info.command,
+            Commands::FileInfo {
+                path_or_id: "12345".to_string(),
+                raw: false,
+            }
+        );
+
+        let parsed_info_file =
+            Args::try_parse_from(["app", "info-file", "12345", "--raw"]).unwrap();
+        assert_eq!(
+            parsed_info_file.command,
+            Commands::FileInfo {
+                path_or_id: "12345".to_string(),
+                raw: true,
+            }
         );
     }
 }
