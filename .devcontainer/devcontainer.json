@@ -19,6 +19,7 @@
                 "rust-analyzer.checkOnSave": true
             },
             "extensions": [
+                "google.google-antigravity", // Antigravity for Visual Studio Code
                 "rust-lang.rust-analyzer", // Rust 言語サーバー
                 "tamasfe.even-better-toml", // Cargo.toml の編集支援
                 "vadimcn.vscode-lldb" // CodeLLDB (CLI のデバッグ・ステップ実行用)
@@ -26,7 +27,7 @@
         }
     },
     // コンテナ起動後に実行するコマンド (最新ツールチェーンのアップデートなど)
-    "postCreateCommand": "rustup update stable && cargo --version",
+    "postCreateCommand": "rustup update stable --no-self-update && cargo --version",
     // コンテナ内での非 root ユーザー利用
     "remoteUser": "vscode",
     // Docker内のrootユーザーではなく一般ユーザー（vscode等）を使う場合
