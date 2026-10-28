@@ -320,7 +320,7 @@ cargo run -- status
 
 #### 3. OCC コマンド一覧の表示 (`list`)
 
-利用可能な OCC コマンドの一覧を JSON 形式で表示します (`occ list --output=json`)。
+利用可能な OCC コマンドの一覧を JSON 形式で表示します (`occ list --format=json`)。
 
 ```bash
 cargo run -- list
