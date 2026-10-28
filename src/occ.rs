@@ -88,6 +88,14 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
         Commands::UserList => {
             format!("{} {} user:list --info --output=json", php_path, occ_path)
         }
+        Commands::UserInfo { uid, .. } => {
+            format!(
+                "{} {} user:info --output=json_pretty {}",
+                php_path,
+                occ_path,
+                escape_shell_arg(uid)
+            )
+        }
         Commands::GroupList => {
             format!("{} {} group:list --info --output=json", php_path, occ_path)
         }
@@ -116,6 +124,12 @@ pub fn build_occ_command(command: &Commands, php_path: &str, occ_path: &str) -> 
 /// info:file リモート実行コマンド文字列を構築する関数
 pub fn build_info_file_command(php_path: &str, occ_path: &str, path_or_id: &str) -> String {
     format!("{} {} info:file \"{}\"", php_path, occ_path, path_or_id)
+}
+
+/// シェル引数として安全に渡すためのエスケープ関数
+/// 引数全体をシングルクォートで囲み、内部のシングルクォートを '\'' に置換します。
+pub fn escape_shell_arg(arg: &str) -> String {
+    format!("'{}'", arg.replace('\'', "'\\''"))
 }
 
 /// PHP CLI 実行時に標準出力の先頭に含まれる可能性のある警告メッセージ（PCNTL や PHP Warning 等）を除去する
@@ -361,6 +375,52 @@ mod tests {
         let cmd = Commands::UserList;
         let result = build_occ_command(&cmd, "php", "./occ");
         assert_eq!(result, "php ./occ user:list --info --output=json");
+    }
+
+    #[test]
+    fn test_build_occ_command_user_info_simple() {
+        let cmd = Commands::UserInfo {
+            uid: "layla".to_string(),
+            raw: false,
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(result, "php ./occ user:info --output=json_pretty 'layla'");
+    }
+
+    #[test]
+    fn test_build_occ_command_user_info_with_spaces() {
+        let cmd = Commands::UserInfo {
+            uid: "John Doe".to_string(),
+            raw: false,
+        };
+        let result = build_occ_command(&cmd, "/usr/bin/php", "/var/www/nextcloud/occ");
+        assert_eq!(
+            result,
+            "/usr/bin/php /var/www/nextcloud/occ user:info --output=json_pretty 'John Doe'"
+        );
+    }
+
+    #[test]
+    fn test_build_occ_command_user_info_with_special_characters() {
+        let cmd = Commands::UserInfo {
+            uid: "user'name$with\"chars".to_string(),
+            raw: true,
+        };
+        let result = build_occ_command(&cmd, "php", "./occ");
+        assert_eq!(
+            result,
+            "php ./occ user:info --output=json_pretty 'user'\\''name$with\"chars'"
+        );
+    }
+
+    #[test]
+    fn test_escape_shell_arg() {
+        assert_eq!(escape_shell_arg("normal"), "'normal'");
+        assert_eq!(escape_shell_arg("with space"), "'with space'");
+        assert_eq!(escape_shell_arg("O'Connor"), "'O'\\''Connor'");
+        assert_eq!(escape_shell_arg("$var; rm -rf /"), "'$var; rm -rf /'");
+        assert_eq!(escape_shell_arg("\"quoted\""), "'\"quoted\"'");
+        assert_eq!(escape_shell_arg(""), "''");
     }
 
     #[test]

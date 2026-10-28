@@ -27,7 +27,7 @@ SSH経由でリモートの Nextcloud サーバーに対して `occ` コマン�
 - **設定ファイルと引数の柔軟な上書き**: `config.toml` によるデフォルト設定と、CLI 引数による一時的なパラメータ上書きに対応。
 - **`rsync` による効率的な差分同期**: ローカルの `rsync_target` ディレクトリ内のファイルを、高速かつ安全にリモート側へ同期します。
 - **自動キャッシュ更新 (files:scan)**: ファイル同期完了後、自動的に Nextcloud の `files:scan` を実行してデータベースへ反映。
-- **JSON出力サポート**: `status`, `user-list`, `group-list`, `file-scan` などの主要コマンドで JSON 出力に対応。
+- **JSON出力サポート**: `status`, `user-list`, `user-info`, `group-list`, `file-scan` などの主要コマンドで JSON 出力に対応。
 
 ---
 
@@ -142,6 +142,31 @@ cargo run -- user-delete -t okamura
 cargo run -- user-list
 
 ```
+
+#### 5. ユーザー詳細情報の取得 (`user-info` / `user:info`)
+
+指定したユーザーの表示名、メールアドレス、クォータ、所属グループ、最終ログインなどの詳細情報を JSON 形式で取得します (`occ user:info --output=json_pretty <uid>`)。
+
+※ ユーザー名にスペースや特殊文字が含まれる場合も自動的に安全にエスケープされて実行されます。
+
+```bash
+# ユーザー名を指定して情報を取得
+cargo run -- user-info okamura
+
+# スペースを含むユーザー名も安全に指定可能
+cargo run -- user-info "John Doe"
+
+# 装飾なしで JSON 出力結果のみを出力 (--raw / スクリプトや jq 連携向け)
+cargo run -- user-info okamura --raw
+
+# エイリアス (user:info, users-info, info-user) も利用可能
+cargo run -- user:info okamura --raw
+```
+
+| オプション / 引数 | 短縮 | デフォルト値 | 説明 |
+| --- | --- | --- | --- |
+| `<UID>` | - | (必須) | 情報を取得したい Nextcloud ユーザー ID（スペースを含む場合はクォート推奨） |
+| `--raw` | - | `false` | ヘッダーや成功メッセージを除外し、コマンド実行結果（JSON）のみを出力 |
 
 ---
 

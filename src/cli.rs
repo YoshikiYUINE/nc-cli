@@ -159,6 +159,17 @@ pub enum Commands {
     #[command(name = "user-list")]
     UserList,
 
+    /// ユーザー詳細情報取得 (occ user:info)
+    #[command(name = "user-info", alias = "user:info", alias = "users-info", alias = "info-user")]
+    UserInfo {
+        /// ユーザー ID (uid)
+        uid: String,
+
+        /// 装飾なしでコマンドの出力結果のみを出力 (--raw)
+        #[arg(long)]
+        raw: bool,
+    },
+
     /// グループ一覧表示 (occ group:list)
     #[command(name = "group-list")]
     GroupList,
@@ -267,6 +278,9 @@ impl Commands {
             }
             Commands::UserList => {
                 println!("ユーザー一覧を取得しました。");
+            }
+            Commands::UserInfo { uid, .. } => {
+                println!("ユーザー '{}' の情報を取得しました。", uid);
             }
             Commands::GroupList => {
                 println!("グループ一覧を取得しました。");
@@ -554,6 +568,60 @@ mod tests {
             Commands::FileInfo {
                 path_or_id: "12345".to_string(),
                 raw: true,
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_user_info_basic() {
+        let parsed = Args::try_parse_from(["app", "user-info", "layla"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::UserInfo {
+                uid: "layla".to_string(),
+                raw: false,
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_user_info_with_space_and_raw() {
+        let parsed = Args::try_parse_from(["app", "user-info", "John Doe", "--raw"]).unwrap();
+        assert_eq!(
+            parsed.command,
+            Commands::UserInfo {
+                uid: "John Doe".to_string(),
+                raw: true,
+            }
+        );
+    }
+
+    #[test]
+    fn test_cli_parse_user_info_aliases() {
+        let parsed_colon = Args::try_parse_from(["app", "user:info", "layla"]).unwrap();
+        assert_eq!(
+            parsed_colon.command,
+            Commands::UserInfo {
+                uid: "layla".to_string(),
+                raw: false,
+            }
+        );
+
+        let parsed_plural = Args::try_parse_from(["app", "users-info", "layla"]).unwrap();
+        assert_eq!(
+            parsed_plural.command,
+            Commands::UserInfo {
+                uid: "layla".to_string(),
+                raw: false,
+            }
+        );
+
+        let parsed_reverse = Args::try_parse_from(["app", "info-user", "layla"]).unwrap();
+        assert_eq!(
+            parsed_reverse.command,
+            Commands::UserInfo {
+                uid: "layla".to_string(),
+                raw: false,
             }
         );
     }

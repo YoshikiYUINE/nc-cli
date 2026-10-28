@@ -206,6 +206,59 @@ pub fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         }
+        Commands::UserInfo { uid, raw } => {
+            let host_with_port = if let Some(p) = parsed_port {
+                format!("{}:{}", host, p)
+            } else {
+                host
+            };
+
+            let occ_command = occ::build_occ_command(&args.command, &php_path, &occ_path);
+            let ssh_config = SshConfig {
+                host: host_with_port,
+                ssh_user,
+                identity_file,
+            };
+
+            if *raw {
+                let result = execute_remote_command_bytes(&ssh_config, &occ_command, true)?;
+                if result.exit_status != 0 {
+                    let err_msg = if !result.stderr.trim().is_empty() {
+                        result.stderr.trim().to_string()
+                    } else if !result.stdout.is_empty() {
+                        String::from_utf8_lossy(&result.stdout).trim().to_string()
+                    } else {
+                        format!("終了コード: {}", result.exit_status)
+                    };
+                    return Err(format!("ユーザー '{}' の情報取得に失敗しました: {}", uid, err_msg).into());
+                }
+
+                let (clean_stdout, warnings) = occ::strip_php_cli_warnings(&result.stdout);
+                for w in &warnings {
+                    eprintln!("[サーバー警告] {}", w);
+                }
+                println!("{}", String::from_utf8_lossy(clean_stdout).trim());
+            } else {
+                let result = execute_remote_command(&ssh_config, &occ_command)?;
+
+                if !result.stdout.is_empty() {
+                    println!("\n--- [標準出力] ---\n{}", result.stdout.trim());
+                }
+                if !result.stderr.is_empty() {
+                    eprintln!("\n--- [標準エラー出力] ---\n{}", result.stderr.trim());
+                }
+
+                println!("\n----------------------------------------");
+                if result.exit_status == 0 {
+                    args.command.print_success();
+                } else {
+                    eprintln!(
+                        "失敗: コマンドが終了コード {} で終了しました。",
+                        result.exit_status
+                    );
+                }
+            }
+        }
         Commands::FileInfo { path_or_id, raw } => {
             let host_with_port = if let Some(p) = parsed_port {
                 format!("{}:{}", host, p)
